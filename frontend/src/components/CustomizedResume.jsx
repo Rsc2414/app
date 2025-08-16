@@ -1,14 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { Download, Copy, Edit3, CheckCircle } from 'lucide-react';
+import { Download, Copy, Edit3, CheckCircle, Clock } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 
-const CustomizedResume = ({ originalResume, jobDescription, customizedResume, isProcessing }) => {
+const CustomizedResume = ({ originalResume, jobDescription, customizationResult, isProcessing }) => {
   const [editMode, setEditMode] = useState(false);
-  const [editedResume, setEditedResume] = useState(customizedResume);
+  const [editedResume, setEditedResume] = useState('');
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (customizationResult?.customized_resume) {
+      setEditedResume(customizationResult.customized_resume);
+    }
+  }, [customizationResult]);
 
   const handleCopy = async () => {
     try {
