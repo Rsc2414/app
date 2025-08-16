@@ -1,14 +1,18 @@
 import React, { useState, useRef } from 'react';
-import { Upload, FileText, X } from 'lucide-react';
+import { Upload, FileText, X, Loader2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card, CardContent } from './ui/card';
+import { useToast } from '../hooks/use-toast';
+import { extractPDFText } from '../utils/api';
 
 const FileUpload = ({ onFileSelect, onTextInput, placeholder, accept = ".pdf,.txt,.doc,.docx" }) => {
   const [dragActive, setDragActive] = useState(false);
   const [file, setFile] = useState(null);
   const [textInput, setTextInput] = useState('');
   const [inputMode, setInputMode] = useState('upload'); // 'upload' or 'text'
+  const [isProcessing, setIsProcessing] = useState(false);
   const fileInputRef = useRef(null);
+  const { toast } = useToast();
 
   const handleDrag = (e) => {
     e.preventDefault();
@@ -30,12 +34,44 @@ const FileUpload = ({ onFileSelect, onTextInput, placeholder, accept = ".pdf,.tx
     }
   };
 
-  const handleFileSelect = (selectedFile) => {
+  const handleFileSelect = async (selectedFile) => {
     setFile(selectedFile);
-    // Mock file processing - in real implementation, this would extract text
-    const mockText = `This is mock text extracted from ${selectedFile.name}. 
-    In the real implementation, this would contain the actual PDF/document content.`;
-    onFileSelect && onFileSelect(mockText, selectedFile.name);
+    setIsProcessing(true);
+
+    try {
+      if (selectedFile.type === 'application/pdf') {
+        // Extract text from PDF
+        const result = await extractPDFText(selectedFile);
+        onFileSelect && onFileSelect(result.extracted_text, selectedFile.name);
+        
+        toast({
+          title: "PDF processed successfully!",
+          description: `Extracted text from ${result.page_count} page(s)`,
+        });
+      } else {
+        // Handle text files
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const text = e.target.result;
+          onFileSelect && onFileSelect(text, selectedFile.name);
+        };
+        reader.readAsText(selectedFile);
+        
+        toast({
+          title: "File uploaded successfully!",
+          description: `Processed ${selectedFile.name}`,
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "File processing failed",
+        description: error.message,
+        variant: "destructive",
+      });
+      setFile(null);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleFileInput = (e) => {
@@ -45,11 +81,18 @@ const FileUpload = ({ onFileSelect, onTextInput, placeholder, accept = ".pdf,.tx
   };
 
   const handleTextSubmit = () => {
-    onTextInput && onTextInput(textInput);
+    if (textInput.trim()) {
+      onTextInput && onTextInput(textInput.trim());
+      toast({
+        title: "Text processed successfully!",
+        description: "Your text has been added.",
+      });
+    }
   };
 
   const removeFile = () => {
     setFile(null);
+    setTextInput('');
     onFileSelect && onFileSelect('', '');
   };
 
@@ -60,6 +103,7 @@ const FileUpload = ({ onFileSelect, onTextInput, placeholder, accept = ".pdf,.tx
           variant={inputMode === 'upload' ? 'default' : 'outline'}
           size="sm"
           onClick={() => setInputMode('upload')}
+          disabled={isProcessing}
         >
           <Upload className="w-4 h-4 mr-2" />
           Upload File
@@ -68,6 +112,7 @@ const FileUpload = ({ onFileSelect, onTextInput, placeholder, accept = ".pdf,.tx
           variant={inputMode === 'text' ? 'default' : 'outline'}
           size="sm"
           onClick={() => setInputMode('text')}
+          disabled={isProcessing}
         >
           <FileText className="w-4 h-4 mr-2" />
           Paste Text
@@ -80,22 +125,28 @@ const FileUpload = ({ onFileSelect, onTextInput, placeholder, accept = ".pdf,.tx
             <Card 
               className={`border-2 border-dashed transition-colors cursor-pointer hover:border-primary/50 ${
                 dragActive ? 'border-primary bg-primary/5' : 'border-gray-300'
-              }`}
+              } ${isProcessing ? 'pointer-events-none opacity-60' : ''}`}
               onDragEnter={handleDrag}
               onDragLeave={handleDrag}
               onDragOver={handleDrag}
               onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => !isProcessing && fileInputRef.current?.click()}
             >
               <CardContent className="p-8 text-center">
                 <div className="flex flex-col items-center space-y-4">
                   <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                    <Upload className="w-6 h-6 text-primary" />
+                    {isProcessing ? (
+                      <Loader2 className="w-6 h-6 text-primary animate-spin" />
+                    ) : (
+                      <Upload className="w-6 h-6 text-primary" />
+                    )}
                   </div>
                   <div>
-                    <p className="text-lg font-medium">{placeholder}</p>
+                    <p className="text-lg font-medium">
+                      {isProcessing ? 'Processing...' : placeholder}
+                    </p>
                     <p className="text-sm text-muted-foreground mt-1">
-                      Drag and drop or click to browse
+                      {isProcessing ? 'Extracting text from file' : 'Drag and drop or click to browse'}
                     </p>
                     <p className="text-xs text-muted-foreground mt-2">
                       Supports PDF, DOC, DOCX, TXT files
@@ -115,7 +166,7 @@ const FileUpload = ({ onFileSelect, onTextInput, placeholder, accept = ".pdf,.tx
                     <div>
                       <p className="font-medium text-green-900">{file.name}</p>
                       <p className="text-sm text-green-700">
-                        {(file.size / 1024).toFixed(1)} KB
+                        {file.type === 'application/pdf' ? 'PDF processed' : `${(file.size / 1024).toFixed(1)} KB`}
                       </p>
                     </div>
                   </div>
@@ -124,6 +175,7 @@ const FileUpload = ({ onFileSelect, onTextInput, placeholder, accept = ".pdf,.tx
                     size="sm"
                     onClick={removeFile}
                     className="text-green-700 hover:bg-green-100"
+                    disabled={isProcessing}
                   >
                     <X className="w-4 h-4" />
                   </Button>
@@ -137,6 +189,7 @@ const FileUpload = ({ onFileSelect, onTextInput, placeholder, accept = ".pdf,.tx
             accept={accept}
             onChange={handleFileInput}
             className="hidden"
+            disabled={isProcessing}
           />
         </div>
       ) : (
@@ -146,13 +199,21 @@ const FileUpload = ({ onFileSelect, onTextInput, placeholder, accept = ".pdf,.tx
             onChange={(e) => setTextInput(e.target.value)}
             placeholder={`Paste your ${placeholder.toLowerCase()} text here...`}
             className="w-full h-40 p-4 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-primary focus:border-transparent"
+            disabled={isProcessing}
           />
           <Button
             onClick={handleTextSubmit}
-            disabled={!textInput.trim()}
+            disabled={!textInput.trim() || isProcessing}
             className="w-full"
           >
-            Process Text
+            {isProcessing ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Processing...
+              </>
+            ) : (
+              'Process Text'
+            )}
           </Button>
         </div>
       )}

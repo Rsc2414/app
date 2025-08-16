@@ -1,45 +1,79 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './App.css';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './components/ui/card';
 import { Button } from './components/ui/button';
 import { Separator } from './components/ui/separator';
 import { Toaster } from './components/ui/toaster';
 import { Badge } from './components/ui/badge';
-import { FileText, Target, Zap, CheckCircle, ArrowRight, RefreshCw } from 'lucide-react';
+import { useToast } from './hooks/use-toast';
+import { FileText, Target, Zap, CheckCircle, ArrowRight, RefreshCw, Loader2 } from 'lucide-react';
 import FileUpload from './components/FileUpload';
 import CustomizedResume from './components/CustomizedResume';
-import { processResume } from './components/mock';
+import { customizeResume } from './utils/api';
 
 function App() {
   const [currentStep, setCurrentStep] = useState(1);
   const [resumeText, setResumeText] = useState('');
+  const [resumeFileName, setResumeFileName] = useState('');
   const [jobDescText, setJobDescText] = useState('');
-  const [customizedResume, setCustomizedResume] = useState('');
+  const [jobDescFileName, setJobDescFileName] = useState('');
+  const [customizationResult, setCustomizationResult] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [sessionId, setSessionId] = useState(null);
+  const { toast } = useToast();
+
+  // Generate session ID on component mount
+  useEffect(() => {
+    setSessionId(crypto.randomUUID());
+  }, []);
 
   const handleResumeUpload = (text, filename) => {
     setResumeText(text);
+    setResumeFileName(filename);
     if (text && jobDescText) {
       setCurrentStep(3);
+    } else if (text) {
+      setCurrentStep(2);
     }
   };
 
   const handleJobDescUpload = (text, filename) => {
     setJobDescText(text);
+    setJobDescFileName(filename);
     if (resumeText && text) {
       setCurrentStep(3);
     }
   };
 
   const handleProcess = async () => {
+    if (!resumeText.trim() || !jobDescText.trim()) {
+      toast({
+        title: "Missing information",
+        description: "Please provide both resume and job description",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsProcessing(true);
     setCurrentStep(4);
-    
+
     try {
-      const result = await processResume(resumeText, jobDescText);
-      setCustomizedResume(result.customizedResume);
+      const result = await customizeResume(resumeText, jobDescText, sessionId);
+      setCustomizationResult(result);
+      
+      toast({
+        title: "Resume customized successfully! 🎉",
+        description: `Processing completed in ${result.processing_time} seconds`,
+      });
     } catch (error) {
-      console.error('Processing error:', error);
+      console.error('Customization error:', error);
+      toast({
+        title: "Customization failed",
+        description: error.message,
+        variant: "destructive",
+      });
+      setCurrentStep(3); // Go back to previous step
     } finally {
       setIsProcessing(false);
     }
@@ -48,9 +82,12 @@ function App() {
   const handleReset = () => {
     setCurrentStep(1);
     setResumeText('');
+    setResumeFileName('');
     setJobDescText('');
-    setCustomizedResume('');
+    setJobDescFileName('');
+    setCustomizationResult(null);
     setIsProcessing(false);
+    setSessionId(crypto.randomUUID());
   };
 
   const features = [
@@ -61,13 +98,13 @@ function App() {
     },
     {
       icon: <Zap className="w-6 h-6" />,
-      title: "Smart Matching",
-      description: "AI-powered analysis matches your experience with job requirements for maximum relevance"
+      title: "AI-Powered Analysis",
+      description: "GPT-4 powered analysis matches your experience with job requirements for maximum relevance"
     },
     {
       icon: <FileText className="w-6 h-6" />,
-      title: "Professional Formatting",
-      description: "Maintains clean, professional formatting that both ATS and human recruiters love"
+      title: "Smart PDF Processing",
+      description: "Advanced PDF text extraction with support for various document formats"
     }
   ];
 
@@ -139,12 +176,13 @@ function App() {
                 </CardTitle>
                 <CardDescription>
                   Upload your current resume or paste the text directly
+                  {resumeFileName && <span className="block text-green-600 mt-1">✓ {resumeFileName}</span>}
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <FileUpload
                   onFileSelect={handleResumeUpload}
-                  onTextInput={handleResumeUpload}
+                  onTextInput={(text) => handleResumeUpload(text, 'Pasted Text')}
                   placeholder="Upload Your Resume"
                   accept=".pdf,.txt,.doc,.docx"
                 />
@@ -161,12 +199,13 @@ function App() {
                 </CardTitle>
                 <CardDescription>
                   Paste the job description you're applying for
+                  {jobDescFileName && <span className="block text-green-600 mt-1">✓ {jobDescFileName}</span>}
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <FileUpload
                   onFileSelect={handleJobDescUpload}
-                  onTextInput={handleJobDescUpload}
+                  onTextInput={(text) => handleJobDescUpload(text, 'Pasted Text')}
                   placeholder="Job Description"
                   accept=".pdf,.txt,.doc,.docx"
                 />
@@ -176,7 +215,7 @@ function App() {
         )}
 
         {/* Process Button */}
-        {currentStep === 3 && resumeText && jobDescText && !customizedResume && (
+        {currentStep === 3 && resumeText && jobDescText && !customizationResult && (
           <div className="text-center mb-12">
             <Card className="max-w-md mx-auto">
               <CardContent className="p-8">
@@ -186,15 +225,25 @@ function App() {
                   </div>
                   <h3 className="text-xl font-semibold">Ready to Customize!</h3>
                   <p className="text-gray-600">
-                    Your resume and job description are ready. Let our AI optimize your resume for this specific role.
+                    Your resume and job description are ready. Our AI will optimize your resume for this specific role using GPT-4.
                   </p>
                   <Button 
                     onClick={handleProcess} 
                     className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
                     size="lg"
+                    disabled={isProcessing}
                   >
-                    <Zap className="w-5 h-5 mr-2" />
-                    Customize My Resume
+                    {isProcessing ? (
+                      <>
+                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                        Customizing...
+                      </>
+                    ) : (
+                      <>
+                        <Zap className="w-5 h-5 mr-2" />
+                        Customize My Resume
+                      </>
+                    )}
                   </Button>
                 </div>
               </CardContent>
@@ -220,7 +269,7 @@ function App() {
             <CustomizedResume
               originalResume={resumeText}
               jobDescription={jobDescText}
-              customizedResume={customizedResume}
+              customizationResult={customizationResult}
               isProcessing={isProcessing}
             />
           </div>
@@ -255,7 +304,7 @@ function App() {
             <div className="text-center">
               <div className="inline-flex items-center gap-2 bg-blue-50 px-4 py-2 rounded-full text-blue-700">
                 <Badge variant="secondary" className="bg-blue-100 text-blue-800">
-                  AI-Powered
+                  GPT-4 Powered
                 </Badge>
                 <span className="text-sm">Upload your resume to get started</span>
               </div>
