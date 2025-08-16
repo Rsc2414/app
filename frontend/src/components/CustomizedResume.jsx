@@ -86,7 +86,7 @@ const CustomizedResume = ({ originalResume, jobDescription, customizationResult,
             <div>
               <h4 className="font-medium mb-2">Key Improvements:</h4>
               <ul className="space-y-1">
-                {mockImprovements.map((improvement, index) => (
+                {improvements.map((improvement, index) => (
                   <li key={index} className="text-sm flex items-start gap-2">
                     <div className="w-1.5 h-1.5 bg-green-500 rounded-full mt-2 flex-shrink-0" />
                     {improvement}
@@ -95,15 +95,25 @@ const CustomizedResume = ({ originalResume, jobDescription, customizationResult,
               </ul>
             </div>
             <div>
-              <h4 className="font-medium mb-2">Added Keywords:</h4>
+              <h4 className="font-medium mb-2">Keywords Added:</h4>
               <div className="flex flex-wrap gap-2">
-                {mockKeywords.map((keyword, index) => (
-                  <Badge key={index} variant="secondary" className="text-xs">
-                    {keyword}
-                  </Badge>
-                ))}
+                {keywords.length > 0 ? (
+                  keywords.map((keyword, index) => (
+                    <Badge key={index} variant="secondary" className="text-xs">
+                      {keyword}
+                    </Badge>
+                  ))
+                ) : (
+                  <p className="text-sm text-muted-foreground">Keywords will be shown after processing</p>
+                )}
               </div>
             </div>
+            {customizationResult?.processing_time && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Clock className="w-4 h-4" />
+                <span>Processing time: {customizationResult.processing_time}s</span>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
