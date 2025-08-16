@@ -47,18 +47,11 @@ const CustomizedResume = ({ originalResume, jobDescription, customizationResult,
     });
   };
 
-  const mockImprovements = [
-    "Added 15 relevant keywords for ATS optimization",
-    "Restructured experience to match job requirements",
-    "Enhanced skills section with job-specific technologies",
-    "Optimized formatting for ATS scanning",
-    "Tailored summary to align with role expectations"
+  const improvements = customizationResult?.improvements || [
+    "Processing your resume with AI optimization..."
   ];
 
-  const mockKeywords = [
-    "React", "JavaScript", "Node.js", "Python", "AWS", "Docker", 
-    "Agile", "Scrum", "API Development", "Database Design"
-  ];
+  const keywords = customizationResult?.keywords_added || [];
 
   if (isProcessing) {
     return (
@@ -67,11 +60,15 @@ const CustomizedResume = ({ originalResume, jobDescription, customizationResult,
           <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full mx-auto mb-4"></div>
           <p className="text-lg font-medium">Customizing your resume...</p>
           <p className="text-sm text-muted-foreground mt-2">
-            Analyzing job requirements and optimizing content
+            AI is analyzing job requirements and optimizing content
           </p>
         </CardContent>
       </Card>
     );
+  }
+
+  if (!customizationResult) {
+    return null;
   }
 
   return (
